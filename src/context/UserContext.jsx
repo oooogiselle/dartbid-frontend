@@ -1,43 +1,14 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { login, getMe, getNotifications, setToken } from "../api";
-import { HARDCODED_STUDENTS } from "./students";
+import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { login, register, getMe, getNotifications, setToken } from "../api";
 
-export { HARDCODED_STUDENTS };
-
+const TOKEN_KEY = "dartbid_token";
 const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(HARDCODED_STUDENTS[0]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authError, setAuthError]     = useState(null);
-  // Incremented on every loginAs call; lets async callbacks detect they're stale.
-  const loginVersionRef = useRef(0);
-
-  // Login a student by email/password, set their token, load their profile
-  const loginAs = useCallback(async (student) => {
-    const myVersion = ++loginVersionRef.current;
-    setAuthError(null);
-    try {
-      const { token } = await login(student.email, student.password);
-      if (loginVersionRef.current !== myVersion) return;
-      setToken(token);
-      const me = await getMe();
-      if (loginVersionRef.current !== myVersion) return;
-      setCurrentUser(me);
-      await refreshNotificationCount();
-    } catch (e) {
-      if (loginVersionRef.current !== myVersion) return;
-      setAuthError(`Login failed for ${student.name}: ${e.response?.data?.error ?? e.message}`);
-      // Fall back to local stub so UI still renders
-      setCurrentUser(student);
-    }
-  }, []);
-
-  // Boot: login as first student
-  useEffect(() => {
-    loginAs(HARDCODED_STUDENTS[0]).finally(() => setAuthLoading(false));
-  }, []);
+  const [currentUser, setCurrentUser]   = useState(null);
+  const [authLoading, setAuthLoading]   = useState(true);
+  const [authError, setAuthError]       = useState(null);
+  const [unreadCount, setUnreadCount]   = useState(0);
 
   const refreshNotificationCount = useCallback(async () => {
     try {
@@ -55,9 +26,50 @@ export function UserProvider({ children }) {
     } catch {/* ignore */}
   }, []);
 
-  async function switchUser(email) {
-    const s = HARDCODED_STUDENTS.find((x) => x.email === email);
-    if (s) await loginAs(s);
+  // Restore session from localStorage on boot
+  useEffect(() => {
+    const stored = localStorage.getItem(TOKEN_KEY);
+    if (!stored) {
+      setAuthLoading(false);
+      return;
+    }
+    setToken(stored);
+    getMe()
+      .then((me) => {
+        setCurrentUser(me);
+        refreshNotificationCount();
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        setToken(null);
+      })
+      .finally(() => setAuthLoading(false));
+  }, []);
+
+  async function loginWithCredentials(email, password) {
+    setAuthError(null);
+    const { token } = await login(email, password);
+    localStorage.setItem(TOKEN_KEY, token);
+    setToken(token);
+    const me = await getMe();
+    setCurrentUser(me);
+    await refreshNotificationCount();
+  }
+
+  async function registerAndLogin({ name, email, password, yearStanding, major }) {
+    setAuthError(null);
+    const { token } = await register({ name, email, password, yearStanding, major });
+    localStorage.setItem(TOKEN_KEY, token);
+    setToken(token);
+    const me = await getMe();
+    setCurrentUser(me);
+  }
+
+  function logout() {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setCurrentUser(null);
+    setUnreadCount(0);
   }
 
   function updateBalance(newBalance) {
@@ -73,7 +85,7 @@ export function UserProvider({ children }) {
   }
 
   return (
-    <UserContext.Provider value={{ currentUser, unreadCount, authError, switchUser, updateBalance, refreshUser, refreshNotificationCount }}>
+    <UserContext.Provider value={{ currentUser, authLoading, authError, unreadCount, loginWithCredentials, registerAndLogin, logout, updateBalance, refreshUser, refreshNotificationCount }}>
       {children}
     </UserContext.Provider>
   );

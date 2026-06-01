@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useUser, HARDCODED_STUDENTS } from "../../context/UserContext";
+import { useUser } from "../../context/UserContext";
 import NotificationDrawer from "./NotificationDrawer";
 import DepositModal from "./DepositModal";
 
@@ -51,20 +51,13 @@ const styles = {
     alignItems: "center",
     gap: "6px",
   },
-  switcher: {
-    background: "var(--card)",
-    border: "1px solid var(--border)",
-    borderRadius: "6px",
-    color: "var(--text)",
+  userName: {
     fontFamily: "var(--font-body)",
     fontSize: "13px",
-    padding: "5px 28px 5px 10px",
-    outline: "none",
-    cursor: "pointer",
-    appearance: "none",
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%237aaa80' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 8px center",
+    color: "var(--text-dim)",
+    padding: "5px 10px",
+    border: "1px solid var(--border)",
+    borderRadius: "6px",
   },
   bellBtn: {
     background: "none",
@@ -104,34 +97,28 @@ const styles = {
 };
 
 export default function Navbar() {
-  const { currentUser, unreadCount, switchUser } = useUser();
+  const { currentUser, unreadCount, logout } = useUser();
   const [notifOpen, setNotifOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
-  const [selectedEmail, setSelectedEmail] = useState(currentUser.email ?? HARDCODED_STUDENTS[0].email);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (currentUser.email) setSelectedEmail(currentUser.email);
-  }, [currentUser.email]);
-
-  function handleSwitch(e) {
-    setSelectedEmail(e.target.value);
-    switchUser(e.target.value);
+  function handleLogout() {
+    logout();
+    navigate("/login");
   }
+
+  if (!currentUser) return null;
 
   return (
     <>
       <nav style={styles.nav}>
-        {/* Logo */}
         <Link to="/" style={styles.logo}>
           <span>DART</span><span style={styles.logoAccent}>BID</span>
         </Link>
 
         <div style={styles.right}>
-          {/* Dashboard link */}
           <Link to="/dashboard" style={styles.dashLink}>Dashboard</Link>
 
-          {/* Balance — click to deposit */}
           <div
             style={styles.balance}
             onClick={() => setDepositOpen(true)}
@@ -141,20 +128,8 @@ export default function Navbar() {
             ${parseFloat(currentUser.accountBalance ?? 0).toFixed(2)}
           </div>
 
-          {/* Student switcher */}
-          <select
-            style={styles.switcher}
-            value={selectedEmail}
-            onChange={handleSwitch}
-          >
-            {HARDCODED_STUDENTS.map((s) => (
-              <option key={s.email} value={s.email}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <div style={styles.userName}>{currentUser.name}</div>
 
-          {/* Notification bell */}
           <button
             style={styles.bellBtn}
             onClick={() => setNotifOpen(true)}
@@ -163,10 +138,14 @@ export default function Navbar() {
             🔔
             {unreadCount > 0 && <span style={styles.badge}>{unreadCount}</span>}
           </button>
+
+          <button className="btn btn-ghost btn-sm" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </nav>
 
-      {notifOpen && <NotificationDrawer onClose={() => setNotifOpen(false)} />}
+      {notifOpen  && <NotificationDrawer onClose={() => setNotifOpen(false)} />}
       {depositOpen && <DepositModal onClose={() => setDepositOpen(false)} />}
     </>
   );
