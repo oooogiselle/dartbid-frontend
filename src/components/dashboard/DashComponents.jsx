@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { cancelListing, acceptBid, getMyEnrollments, getMyListings } from "../../api";
+import { cancelListing, acceptBid, getMyEnrollments, getMyListings, getSections } from "../../api";
 import { useUser } from "../../context/UserContext";
 
 // ── AccountSummary ────────────────────────────────────────────────────────────
@@ -197,8 +197,10 @@ export function EnrollmentsTab({ onCreateListing }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getMyEnrollments(), getMyListings()]).then(([enr, lst]) => {
-      setEnrollments(enr);
+    Promise.all([getMyEnrollments(), getMyListings(), getSections()]).then(([enr, lst, allSections]) => {
+      const sectionMap = Object.fromEntries(allSections.map(s => [s.sectionId, s]));
+      const enriched = enr.map(e => ({ ...e, ...sectionMap[e.sectionId] }));
+      setEnrollments(enriched);
       setActiveListedIds(new Set(lst.filter(l => l.status === "active").map(l => l.sectionId)));
       setLoading(false);
     });
@@ -219,7 +221,7 @@ export function EnrollmentsTab({ onCreateListing }) {
   return (
     <table className="table">
       <thead>
-        <tr><th>Section</th><th>Time</th><th>Location</th><th>Enrollment</th><th></th></tr>
+        <tr><th>Section</th><th>Time</th><th>Location</th><th>Enrolled</th><th></th></tr>
       </thead>
       <tbody>
         {enrollments.map(s => {
@@ -232,8 +234,8 @@ export function EnrollmentsTab({ onCreateListing }) {
               </td>
               <td style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{s.meetingTime ?? "—"}</td>
               <td style={{ fontSize: "12px", color: "var(--text-dim)" }}>{s.location ?? "—"}</td>
-              <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px" }}>
-                {s.currentEnrollment}/{s.enrollmentCap}
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: s.currentEnrollment >= s.enrollmentCap ? "var(--red)" : "var(--text-dim)" }}>
+                {s.currentEnrollment != null ? `${s.currentEnrollment}/${s.enrollmentCap}` : "—"}
               </td>
               <td>
                 {alreadyListed ? (

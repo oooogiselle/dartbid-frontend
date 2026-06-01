@@ -117,6 +117,7 @@ export default function Navbar() {
         </Link>
 
         <div style={styles.right}>
+          <Link to="/" style={styles.dashLink}>Listings</Link>
           <Link to="/dashboard" style={styles.dashLink}>Dashboard</Link>
 
           <div
