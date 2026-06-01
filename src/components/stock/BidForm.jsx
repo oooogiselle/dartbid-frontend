@@ -2,23 +2,36 @@ import { useState } from "react";
 import { placeBid } from "../../api";
 import { useUser } from "../../context/UserContext";
 
-export default function BidForm({ listing, currentUserId, onBidPlaced }) {
+export default function BidForm({ listing, currentUserId, myBid, onBidPlaced }) {
   const { currentUser, updateBalance } = useUser();
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
 
-  if (!listing) return null;
+  if (!listing) {
+    if (myBid?.status === "accepted") {
+      return (
+        <div style={{ padding: "20px", background: "rgba(74,222,128,0.08)", border: "1px solid rgba(74,222,128,0.2)", borderRadius: "var(--radius-lg)", textAlign: "center" }}>
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>🎓</div>
+          <div style={{ fontWeight: 600, color: "var(--green)", marginBottom: "4px" }}>Bid Accepted!</div>
+          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+            You paid ${parseFloat(myBid.amount).toFixed(2)} · Enrollment transferred to you.
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   const minBid = listing.minNextBid ?? listing.minPrice;
   const balance = currentUser.accountBalance;
 
-  // Check if user can bid
-  const isOwnListing = listing.sellerId === currentUserId; // sellerId stripped from public; always false on stock page
-  const myActiveBid = listing.bids?.find(
-    (b) => b.buyerId === currentUserId && b.status === "pending"
-  );
+  const isOwnListing = listing.sellerId === currentUserId;
+  const topBid = listing.currentHighestBid;
+  const isOutbid = myBid?.status === "outbid" ||
+    (myBid?.status === "pending" && topBid && parseFloat(myBid.amount) < parseFloat(topBid));
+  const myActiveBid = myBid?.status === "pending" && !isOutbid ? myBid : null;
 
   async function handleBid() {
     const amt = parseFloat(amount);
@@ -69,7 +82,18 @@ export default function BidForm({ listing, currentUserId, onBidPlaced }) {
   }
 
   return (
-    <div style={{ padding: "20px", background: "var(--card)", border: "1px solid var(--border-bright)", borderRadius: "var(--radius-lg)" }}>
+    <div style={{ padding: "20px", background: "var(--card)", border: `1px solid ${isOutbid ? "rgba(248,113,113,0.4)" : "var(--border-bright)"}`, borderRadius: "var(--radius-lg)" }}>
+      {isOutbid && (
+        <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.25)", borderRadius: "6px", padding: "10px 14px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ color: "var(--red)", fontWeight: 600, fontSize: "13px" }}>You've been outbid</div>
+            <div style={{ color: "var(--text-muted)", fontSize: "11px", marginTop: "2px" }}>
+              Your bid ${parseFloat(myBid.amount).toFixed(2)} · Current high ${parseFloat(topBid).toFixed(2)}
+            </div>
+          </div>
+          <span className="badge badge-red">OUTBID</span>
+        </div>
+      )}
       <div className="card-title" style={{ marginBottom: "16px" }}>Place a Bid</div>
 
       <div style={{ marginBottom: "16px" }}>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { cancelListing, acceptBid } from "../../api";
+import { useState, useEffect } from "react";
+import { cancelListing, acceptBid, getMyEnrollments, getMyListings } from "../../api";
 import { useUser } from "../../context/UserContext";
 
 // ── AccountSummary ────────────────────────────────────────────────────────────
@@ -185,6 +185,68 @@ export function BidsPlaced({ bids }) {
             </td>
           </tr>
         ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ── EnrollmentsTab ────────────────────────────────────────────────────────────
+export function EnrollmentsTab({ onCreateListing }) {
+  const [enrollments, setEnrollments] = useState([]);
+  const [activeListedIds, setActiveListedIds] = useState(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([getMyEnrollments(), getMyListings()]).then(([enr, lst]) => {
+      setEnrollments(enr);
+      setActiveListedIds(new Set(lst.filter(l => l.status === "active").map(l => l.sectionId)));
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "40px", fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-muted)" }}>loading...</div>
+  );
+
+  if (enrollments.length === 0) return (
+    <div className="empty-state">
+      <div className="empty-state-icon">🎓</div>
+      <div className="empty-state-title">No enrollments</div>
+      <div className="empty-state-sub">Your enrolled sections will appear here.</div>
+    </div>
+  );
+
+  return (
+    <table className="table">
+      <thead>
+        <tr><th>Section</th><th>Time</th><th>Location</th><th>Enrollment</th><th></th></tr>
+      </thead>
+      <tbody>
+        {enrollments.map(s => {
+          const alreadyListed = activeListedIds.has(s.sectionId);
+          return (
+            <tr key={s.sectionId}>
+              <td>
+                <div style={{ fontWeight: 600, color: "var(--text)" }}>{s.courseCode}</div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{s.title}</div>
+              </td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{s.meetingTime ?? "—"}</td>
+              <td style={{ fontSize: "12px", color: "var(--text-dim)" }}>{s.location ?? "—"}</td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px" }}>
+                {s.currentEnrollment}/{s.enrollmentCap}
+              </td>
+              <td>
+                {alreadyListed ? (
+                  <span className="badge badge-amber">Listed</span>
+                ) : (
+                  <button className="btn btn-primary btn-xs" onClick={() => onCreateListing(s.sectionId)}>
+                    + List
+                  </button>
+                )}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getSection } from "../api";
+import { getSection, getMyBids } from "../api";
 import { useUser } from "../context/UserContext";
 import PriceChart from "../components/stock/PriceChart";
 import BidForm from "../components/stock/BidForm";
@@ -11,13 +11,21 @@ export default function StockPage() {
   const { currentUser } = useUser();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [myBidOnListing, setMyBidOnListing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchSection = useCallback(async () => {
     try {
-      const res = await getSection(sectionId);
-      setData(res);
+      const [section, myBids] = await Promise.all([getSection(sectionId), getMyBids()]);
+      setData(section);
+      const listingId = section?.activeListing?.listingId;
+      if (listingId) {
+        const match = myBids.find(b => b.listingId === listingId);
+        setMyBidOnListing(match ?? null);
+      } else {
+        setMyBidOnListing(null);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -103,6 +111,7 @@ export default function StockPage() {
           <BidForm
             listing={listing}
             currentUserId={currentUser.studentId}
+            myBid={myBidOnListing}
             onBidPlaced={fetchSection}
           />
         </div>

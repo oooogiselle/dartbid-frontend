@@ -9,9 +9,11 @@ import {
   BidsReceived,
   BidsPlaced,
   TransactionHistory,
+  EnrollmentsTab,
 } from "../components/dashboard/DashComponents";
 
 const TABS = [
+  { key: "enrollments",  label: "My Classes"   },
   { key: "listings",     label: "My Listings"  },
   { key: "received",     label: "Bids Received" },
   { key: "placed",       label: "Bids Placed"   },
@@ -26,6 +28,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading]         = useState(true);
   const [createOpen, setCreateOpen]   = useState(false);
+  const [createSectionId, setCreateSectionId] = useState(null);
   const [depositOpen, setDepositOpen] = useState(false);
 
   const fetchAll = useCallback(async () => {
@@ -64,7 +67,7 @@ export default function DashboardPage() {
           </h1>
           <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>{currentUser.name} · {currentUser.yearStanding}</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
+        <button className="btn btn-primary" onClick={() => { setCreateSectionId(null); setCreateOpen(true); }}>
           + Create Listing
         </button>
       </div>
@@ -93,6 +96,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <>
+            {tab === "enrollments"  && <EnrollmentsTab onCreateListing={(sid) => { setCreateSectionId(sid); setCreateOpen(true); }} />}
             {tab === "listings"     && <ActiveListings     listings={listings}         onRefresh={fetchAll} />}
             {tab === "received"     && <BidsReceived        listings={listings}         onRefresh={fetchAll} />}
             {tab === "placed"       && <BidsPlaced          bids={bids} />}
@@ -101,7 +105,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {createOpen  && <CreateListingModal onClose={() => setCreateOpen(false)} onSuccess={fetchAll} />}
+      {createOpen  && <CreateListingModal onClose={() => setCreateOpen(false)} onSuccess={fetchAll} defaultSectionId={createSectionId} />}
       {depositOpen && <DepositModal        onClose={() => setDepositOpen(false)} />}
     </main>
   );

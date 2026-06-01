@@ -12,6 +12,8 @@ export default function HomePage() {
   const [sections, setSections]   = useState([]);
   const [loading, setLoading]     = useState(true);
   const [filters, setFilters]     = useState({});
+  const [classSearch, setClassSearch] = useState("");
+  const [classDept, setClassDept]     = useState("");
   const [depositOpen, setDepositOpen] = useState(false);
 
   const fetchListings = useCallback(async (f = filters) => {
@@ -98,10 +100,42 @@ export default function HomePage() {
           <ListingGrid listings={listings} loading={loading} />
         </>
       ) : (
+        <>
+          {/* Filter bar for All Classes */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "20px", alignItems: "center" }}>
+            <input
+              className="input"
+              style={{ flex: 1 }}
+              placeholder="Search courses, professors…"
+              value={classSearch}
+              onChange={e => setClassSearch(e.target.value)}
+            />
+            <select
+              className="input"
+              style={{ width: "160px" }}
+              value={classDept}
+              onChange={e => setClassDept(e.target.value)}
+            >
+              <option value="">All Depts</option>
+              {[...new Set(sections.map(s => s.departmentCode))].sort().map(code => (
+                <option key={code} value={code}>{code}</option>
+              ))}
+            </select>
+            {(classSearch || classDept) && (
+              <button className="btn btn-ghost btn-sm" onClick={() => { setClassSearch(""); setClassDept(""); }}>Clear</button>
+            )}
+          </div>
         <div className="grid-3" style={{ gap: "16px" }}>
           {loading
             ? [1,2,3,4,5,6].map(i => <div key={i} className="card loading" style={{ height: "140px" }} />)
-            : sections.map(s => (
+            : sections
+                .filter(s => {
+                  const q = classSearch.toLowerCase();
+                  const matchSearch = !q || s.courseCode.toLowerCase().includes(q) || s.title.toLowerCase().includes(q) || (s.professorName ?? "").toLowerCase().includes(q);
+                  const matchDept = !classDept || s.departmentCode === classDept;
+                  return matchSearch && matchDept;
+                })
+                .map(s => (
               <div
                 key={s.sectionId}
                 className="card"
@@ -132,6 +166,7 @@ export default function HomePage() {
             ))
           }
         </div>
+        </>
       )}
 
       {depositOpen && <DepositModal onClose={() => setDepositOpen(false)} />}

@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { getMyEnrollments, createListing, getMyListings } from "../../api";
 
-export default function CreateListingModal({ onClose, onSuccess }) {
+export default function CreateListingModal({ onClose, onSuccess, defaultSectionId }) {
   const [enrollments, setEnrollments] = useState([]);
   const [myListings, setMyListings] = useState([]);
-  const [sectionId, setSectionId] = useState("");
+  const [sectionId, setSectionId] = useState(defaultSectionId ? String(defaultSectionId) : "");
   const [minPrice, setMinPrice] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
