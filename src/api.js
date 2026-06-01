@@ -175,6 +175,11 @@ export async function getMyEnrollments() {
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 // GET /api/sections/departments
+export async function getSections() {
+  const res = await api.get("/sections/");
+  return res.data ?? [];
+}
+
 export async function getDepartments() {
   const res = await api.get("/sections/departments");
   return res.data ?? [];
