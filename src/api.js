@@ -88,13 +88,12 @@ function normalizeListing(l) {
 function normalizeBid(b) {
   return {
     ...b,
-    // Section may be nested or flat
+    status: b.status ?? "pending",
     section: b.section ?? {
       sectionId:  b.sectionId,
       courseCode: b.courseCode,
       title:      b.title,
     },
-    // Listing may be nested or flat
     listing: b.listing ? normalizeListing(b.listing) : null,
   };
 }
