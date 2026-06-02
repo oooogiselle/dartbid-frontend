@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { cancelListing, acceptBid, getMyEnrollments, getMyListings, getSections } from "../../api";
+import { cancelListing, acceptBid, getMyEnrollments, getMyListings, getSections, enrollInSection } from "../../api";
 import { useUser } from "../../context/UserContext";
 
 // ── AccountSummary ────────────────────────────────────────────────────────────
@@ -190,13 +190,97 @@ export function BidsPlaced({ bids }) {
   );
 }
 
+// ── EnrollModal ───────────────────────────────────────────────────────────────
+function EnrollModal({ currentEnrollments, onClose, onSuccess }) {
+  const [allSections, setAllSections] = useState([]);
+  const [sectionId, setSectionId] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const enrolledIds = new Set(currentEnrollments.map(e => e.sectionId));
+
+  useEffect(() => {
+    getSections().then(data => {
+      setAllSections(data);
+      setFetchLoading(false);
+    });
+  }, []);
+
+  const available = allSections.filter(
+    s => !enrolledIds.has(s.sectionId) && s.currentEnrollment < s.enrollmentCap
+  );
+
+  async function handleSubmit() {
+    if (!sectionId) return setError("Select a section.");
+    setError(null);
+    setLoading(true);
+    try {
+      await enrollInSection(parseInt(sectionId));
+      onSuccess?.();
+      onClose();
+    } catch (e) {
+      setError(e.response?.data?.error ?? "Enrollment failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">Enroll in a Course</div>
+
+        <div className="form-group">
+          <label className="form-label">Section</label>
+          {fetchLoading ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "13px", padding: "8px 0" }}>Loading sections...</div>
+          ) : currentEnrollments.length >= 3 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "13px", padding: "8px 0" }}>
+              You're enrolled in 3 courses — the maximum allowed.
+            </div>
+          ) : available.length === 0 ? (
+            <div style={{ color: "var(--text-muted)", fontSize: "13px", padding: "8px 0" }}>
+              No open sections available.
+            </div>
+          ) : (
+            <select className="input" value={sectionId} onChange={e => setSectionId(e.target.value)}>
+              <option value="">Select a section…</option>
+              {available.map(s => (
+                <option key={s.sectionId} value={s.sectionId}>
+                  {s.courseCode} — {s.title}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {error && <div style={{ color: "var(--red)", fontSize: "12px", marginBottom: "8px" }}>{error}</div>}
+
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleSubmit}
+            disabled={loading || !sectionId || currentEnrollments.length >= 3}
+          >
+            {loading ? "Enrolling..." : "Enroll"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── EnrollmentsTab ────────────────────────────────────────────────────────────
 export function EnrollmentsTab({ onCreateListing }) {
   const [enrollments, setEnrollments] = useState([]);
   const [activeListedIds, setActiveListedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
+  const [enrollOpen, setEnrollOpen] = useState(false);
 
-  useEffect(() => {
+  function fetchAll() {
+    setLoading(true);
     Promise.all([getMyEnrollments(), getMyListings(), getSections()]).then(([enr, lst, allSections]) => {
       const sectionMap = Object.fromEntries(allSections.map(s => [s.sectionId, s]));
       const enriched = enr.map(e => ({ ...e, ...sectionMap[e.sectionId] }));
@@ -204,53 +288,81 @@ export function EnrollmentsTab({ onCreateListing }) {
       setActiveListedIds(new Set(lst.filter(l => l.status === "active").map(l => l.sectionId)));
       setLoading(false);
     });
-  }, []);
+  }
+
+  useEffect(() => { fetchAll(); }, []);
 
   if (loading) return (
     <div style={{ textAlign: "center", padding: "40px", fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-muted)" }}>loading...</div>
   );
 
-  if (enrollments.length === 0) return (
-    <div className="empty-state">
-      <div className="empty-state-icon">🎓</div>
-      <div className="empty-state-title">No enrollments</div>
-      <div className="empty-state-sub">Your enrolled sections will appear here.</div>
-    </div>
-  );
+  const canEnroll = enrollments.length < 3;
 
   return (
-    <table className="table">
-      <thead>
-        <tr><th>Section</th><th>Time</th><th>Location</th><th>Enrolled</th><th></th></tr>
-      </thead>
-      <tbody>
-        {enrollments.map(s => {
-          const alreadyListed = activeListedIds.has(s.sectionId);
-          return (
-            <tr key={s.sectionId}>
-              <td>
-                <div style={{ fontWeight: 600, color: "var(--text)" }}>{s.courseCode}</div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{s.title}</div>
-              </td>
-              <td style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{s.meetingTime ?? "—"}</td>
-              <td style={{ fontSize: "12px", color: "var(--text-dim)" }}>{s.location ?? "—"}</td>
-              <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: s.currentEnrollment >= s.enrollmentCap ? "var(--red)" : "var(--text-dim)" }}>
-                {s.currentEnrollment != null ? `${s.currentEnrollment}/${s.enrollmentCap}` : "—"}
-              </td>
-              <td>
-                {alreadyListed ? (
-                  <span className="badge badge-amber">Listed</span>
-                ) : (
-                  <button className="btn btn-primary btn-xs" onClick={() => onCreateListing(s.sectionId)}>
-                    + List
-                  </button>
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-muted)" }}>
+          {enrollments.length}/3 enrolled
+        </span>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={() => setEnrollOpen(true)}
+          disabled={!canEnroll}
+          title={!canEnroll ? "Max 3 classes" : undefined}
+        >
+          + Enroll
+        </button>
+      </div>
+
+      {enrollments.length === 0 ? (
+        <div className="empty-state">
+          <div className="empty-state-icon">🎓</div>
+          <div className="empty-state-title">No enrollments</div>
+          <div className="empty-state-sub">Click + Enroll to add a course.</div>
+        </div>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr><th>Section</th><th>Time</th><th>Location</th><th>Enrolled</th><th></th></tr>
+          </thead>
+          <tbody>
+            {enrollments.map(s => {
+              const alreadyListed = activeListedIds.has(s.sectionId);
+              return (
+                <tr key={s.sectionId}>
+                  <td>
+                    <div style={{ fontWeight: 600, color: "var(--text)" }}>{s.courseCode}</div>
+                    <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>{s.title}</div>
+                  </td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>{s.meetingTime ?? "—"}</td>
+                  <td style={{ fontSize: "12px", color: "var(--text-dim)" }}>{s.location ?? "—"}</td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: s.currentEnrollment >= s.enrollmentCap ? "var(--red)" : "var(--text-dim)" }}>
+                    {s.currentEnrollment != null ? `${s.currentEnrollment}/${s.enrollmentCap}` : "—"}
+                  </td>
+                  <td>
+                    {alreadyListed ? (
+                      <span className="badge badge-amber">Listed</span>
+                    ) : (
+                      <button className="btn btn-primary btn-xs" onClick={() => onCreateListing(s.sectionId)}>
+                        + List
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {enrollOpen && (
+        <EnrollModal
+          currentEnrollments={enrollments}
+          onClose={() => setEnrollOpen(false)}
+          onSuccess={fetchAll}
+        />
+      )}
+    </>
   );
 }
 
