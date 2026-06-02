@@ -168,8 +168,13 @@ export async function getAccountHistory() {
 // GET /api/students/me/enrollments
 export async function getMyEnrollments() {
   const res = await api.get("/students/me/enrollments");
-  // Returns list of section objects the student is enrolled in
   return (res.data ?? []).map(normalizeSection);
+}
+
+// POST /api/students/me/enrollments  { sectionId }
+export async function enrollInSection(sectionId) {
+  const res = await api.post("/students/me/enrollments", { sectionId });
+  return res.data;
 }
 
 // ── Sections ──────────────────────────────────────────────────────────────────

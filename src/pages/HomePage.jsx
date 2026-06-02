@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { getListings, getSections } from "../api";
+import { getListings, getSections, getMyEnrollments, enrollInSection } from "../api";
 import FilterBar from "../components/home/FilterBar";
 import ListingGrid from "../components/home/ListingGrid";
 import DepositModal from "../components/shared/DepositModal";
@@ -15,6 +15,9 @@ export default function HomePage() {
   const [classSearch, setClassSearch] = useState("");
   const [classDept, setClassDept]     = useState("");
   const [depositOpen, setDepositOpen] = useState(false);
+  const [myEnrolledIds, setMyEnrolledIds]   = useState(new Set());
+  const [enrollmentCount, setEnrollmentCount] = useState(0);
+  const [enrolling, setEnrolling]           = useState(null);
 
   const fetchListings = useCallback(async (f = filters) => {
     setLoading(true);
@@ -31,14 +34,31 @@ export default function HomePage() {
   const fetchSections = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getSections();
+      const [data, enrollments] = await Promise.all([getSections(), getMyEnrollments()]);
       setSections(data);
+      setMyEnrolledIds(new Set(enrollments.map(e => e.sectionId)));
+      setEnrollmentCount(enrollments.length);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function handleEnroll(sectionId) {
+    setEnrolling(sectionId);
+    try {
+      await enrollInSection(sectionId);
+      const [data, enrollments] = await Promise.all([getSections(), getMyEnrollments()]);
+      setSections(data);
+      setMyEnrolledIds(new Set(enrollments.map(e => e.sectionId)));
+      setEnrollmentCount(enrollments.length);
+    } catch (e) {
+      alert(e.response?.data?.error ?? "Enrollment failed.");
+    } finally {
+      setEnrolling(null);
+    }
+  }
 
   useEffect(() => { fetchListings({}); }, []);
 
@@ -65,7 +85,7 @@ export default function HomePage() {
           <p style={{ color: "var(--text-muted)", fontSize: "13px" }}>
             {loading ? "Loading…" : view === "listings"
               ? `${listings.length} listing${listings.length !== 1 ? "s" : ""} · sorted by bid activity`
-              : `${sections.length} sections · Spring 2026`}
+              : `${sections.length} sections · Spring 2026 · ${enrollmentCount}/3 enrolled`}
           </p>
         </div>
         <div style={{ display: "flex", gap: "8px" }}>
@@ -149,7 +169,23 @@ export default function HomePage() {
                     <span className="badge badge-muted">{s.departmentCode}</span>
                     {s.distributiveCode && <span className="badge badge-muted">{s.distributiveCode}</span>}
                   </div>
-                  {isFull(s) && <span className="badge badge-red">FULL</span>}
+                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                    {isFull(s) && <span className="badge badge-red">FULL</span>}
+                    {myEnrolledIds.has(s.sectionId)
+                      ? <span className="badge badge-green">Enrolled</span>
+                      : enrollmentCount >= 3
+                      ? <span className="badge badge-muted" title="Max 3 classes">3/3</span>
+                      : !isFull(s) && (
+                        <button
+                          className="btn btn-primary btn-xs"
+                          onClick={e => { e.stopPropagation(); handleEnroll(s.sectionId); }}
+                          disabled={enrolling === s.sectionId}
+                        >
+                          {enrolling === s.sectionId ? "…" : "+ Enroll"}
+                        </button>
+                      )
+                    }
+                  </div>
                 </div>
                 <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: "17px", color: "var(--text)", marginBottom: "2px", letterSpacing: "-0.01em" }}>
                   {s.courseCode}
